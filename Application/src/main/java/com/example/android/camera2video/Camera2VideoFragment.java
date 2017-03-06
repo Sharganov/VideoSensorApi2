@@ -29,6 +29,10 @@ import android.content.res.Configuration;
 import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -38,7 +42,9 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.MediaRecorder;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -55,17 +61,22 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 public class Camera2VideoFragment extends Fragment
-        implements View.OnClickListener, FragmentCompat.OnRequestPermissionsResultCallback {
+        implements View.OnClickListener, FragmentCompat.OnRequestPermissionsResultCallback, SensorEventListener {
 
     private static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
     private static final int SENSOR_ORIENTATION_INVERSE_DEGREES = 270;
@@ -220,6 +231,15 @@ public class Camera2VideoFragment extends Fragment
     private CaptureRequest.Builder mPreviewBuilder;
     private Surface mRecorderSurface;
 
+
+    private SensorManager mSensorManager;
+    private Sensor mGyro;
+    private long mStartTime = -1;
+    private StringBuilder mUpdatedBuilder;
+    private StringBuilder mBuilderToFile;
+    private PrintStream mGyroWriter;
+    private static int mCharCount = 262144;
+
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
     }
@@ -287,12 +307,22 @@ public class Camera2VideoFragment extends Fragment
         view.findViewById(R.id.info).setOnClickListener(this);
     }
 
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mSensorManager = (SensorManager) getActivity().getSystemService(Context.SENSOR_SERVICE);
+        mGyro = mSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         startBackgroundThread();
         if (mTextureView.isAvailable()) {
             openCamera(mTextureView.getWidth(), mTextureView.getHeight());
+            mSensorManager.registerListener(
+                    this, mGyro, SensorManager.SENSOR_DELAY_FASTEST);
         } else {
             mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -432,6 +462,7 @@ public class Camera2VideoFragment extends Fragment
 
             // Choose the sizes for camera preview and video recording
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
             StreamConfigurationMap map = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
@@ -611,6 +642,7 @@ public class Camera2VideoFragment extends Fragment
         try {
             closePreviewSession();
             setUpMediaRecorder();
+            setUpSensorWriter();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -664,6 +696,26 @@ public class Camera2VideoFragment extends Fragment
 
     }
 
+    private void setUpSensorWriter() {
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        File wallpaperDirectory = new File(Environment.getExternalStorageDirectory().getPath()+"/videoSensor/");
+        wallpaperDirectory.mkdirs();
+
+        File wallpaperDirectory1 = new File(Environment.getExternalStorageDirectory().getPath()+"/videoSensor/"+ timestamp);
+        wallpaperDirectory1.mkdirs();
+
+        String gyroFile = Environment.getExternalStorageDirectory().getPath() + "/videoSensor/" + timestamp + "/" + timestamp + "gyro" + ".csv";
+
+        try {
+            Log.d(TAG, "setUpSensorWriter");
+            mGyroWriter = new PrintStream(gyroFile);
+            mUpdatedBuilder = new StringBuilder(mCharCount);
+        }
+        catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+}
+
     private void closePreviewSession() {
         if (mPreviewSession != null) {
             mPreviewSession.close();
@@ -686,6 +738,8 @@ public class Camera2VideoFragment extends Fragment
             Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
         }
         mNextVideoAbsolutePath = null;
+        mGyroWriter.append(mUpdatedBuilder);
+        mGyroWriter.close();
         startPreview();
     }
 
@@ -757,4 +811,42 @@ public class Camera2VideoFragment extends Fragment
 
     }
 
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
+    @Override
+    public void onSensorChanged(SensorEvent sensorEvent) {
+        if (mIsRecordingVideo) {
+            if (sensorEvent.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
+
+                if (mStartTime == -1) {
+                    mStartTime = sensorEvent.timestamp;
+                }
+
+                if (mUpdatedBuilder.length() < mCharCount) {
+                    mUpdatedBuilder.append(sensorEvent.values[0] + "," +
+                            sensorEvent.values[1] + "," +
+                            sensorEvent.values[2] + "," +
+                            (sensorEvent.timestamp - mStartTime) + "\n");
+                } else {
+                    mBuilderToFile = mUpdatedBuilder;
+                    mUpdatedBuilder = new StringBuilder(mCharCount);
+                    new AsyncTaskWriter().execute(mBuilderToFile);
+                }
+            }
+        }
+    }
+
+    private class AsyncTaskWriter extends AsyncTask<StringBuilder, Integer, Integer> {
+        @Override
+        protected Integer doInBackground(StringBuilder... stringBuilders) {
+            Log.d(TAG, "do in background");
+            mGyroWriter.append(stringBuilders[0]);
+            return 1;
+        }
+
+        protected void onPostExecute(Long result) {
+            Log.d(TAG, "Downloaded");
+        }
+    }
 }
