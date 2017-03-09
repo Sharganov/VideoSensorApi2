@@ -241,8 +241,8 @@ public class Camera2VideoFragment extends Fragment
     private SensorManager mSensorManager;
     private Sensor mGyro;
     private long mStartTime = -1;
-    private StringBuilder mUpdatedBuilder;
-    private StringBuilder mBuilderToFile;
+    private StringBuffer mUpdatedBuilder;
+    private StringBuffer mBuilderToFile;
     private PrintStream mGyroWriter;
     private static int mCharCount = 262144;
     private ImageReader mImageReader;
@@ -327,10 +327,9 @@ public class Camera2VideoFragment extends Fragment
     public void onResume() {
         super.onResume();
         startBackgroundThread();
+        mSensorManager.registerListener(this, mGyro, SensorManager.SENSOR_DELAY_FASTEST);
         if (mTextureView.isAvailable()) {
             openCamera(mTextureView.getWidth(), mTextureView.getHeight());
-            mSensorManager.registerListener(
-                    this, mGyro, SensorManager.SENSOR_DELAY_FASTEST);
         } else {
             mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -545,7 +544,6 @@ public class Camera2VideoFragment extends Fragment
             mPreviewBuilder.addTarget(previewSurface);
             mPreviewBuilder.addTarget(imageSurface);
 
-
             mCameraDevice.createCaptureSession(Arrays.asList(previewSurface, imageSurface), new CameraCaptureSession.StateCallback() {
 
                 @Override
@@ -677,6 +675,10 @@ public class Camera2VideoFragment extends Fragment
             surfaces.add(mRecorderSurface);
             mPreviewBuilder.addTarget(mRecorderSurface);
 
+            Surface imageSurface = mImageReader.getSurface();
+            surfaces.add(imageSurface);
+            mPreviewBuilder.addTarget(imageSurface);
+
             // Start a capture session
             // Once the session starts, we can update the UI and start recording
             mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
@@ -727,7 +729,7 @@ public class Camera2VideoFragment extends Fragment
         try {
             Log.d(TAG, "setUpSensorWriter");
             mGyroWriter = new PrintStream(gyroFile);
-            mUpdatedBuilder = new StringBuilder(mCharCount);
+            mUpdatedBuilder = new StringBuffer(mCharCount);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -743,6 +745,8 @@ public class Camera2VideoFragment extends Fragment
     private void stopRecordingVideo() {
         // UI
         mIsRecordingVideo = false;
+        mFrameCount = 0;
+        mStartTime = -1;
         mButtonVideo.setText(R.string.record);
         // Stop recording
         mMediaRecorder.stop();
@@ -846,16 +850,16 @@ public class Camera2VideoFragment extends Fragment
                             (sensorEvent.timestamp - mStartTime) + "\n");
                 } else {
                     mBuilderToFile = mUpdatedBuilder;
-                    mUpdatedBuilder = new StringBuilder(mCharCount);
+                    mUpdatedBuilder = new StringBuffer(mCharCount);
                     new AsyncTaskWriter().execute(mBuilderToFile);
                 }
             }
         }
     }
 
-    private class AsyncTaskWriter extends AsyncTask<StringBuilder, Integer, Integer> {
+    private class AsyncTaskWriter extends AsyncTask<StringBuffer, Integer, Integer> {
         @Override
-        protected Integer doInBackground(StringBuilder... stringBuilders) {
+        protected Integer doInBackground(StringBuffer... stringBuilders) {
             Log.d(TAG, "do in background");
             mGyroWriter.append(stringBuilders[0]);
             return 1;
@@ -871,7 +875,10 @@ public class Camera2VideoFragment extends Fragment
 
                 @Override
                 public void onImageAvailable(ImageReader reader) {
-                    Log.e(TAG, "onImageAvailable: " + mFrameCount++);
+                    if (mIsRecordingVideo) {
+                        mFrameCount++;
+                        mUpdatedBuilder.append(mFrameCount + "\n");
+                    }
                     Image img = null;
                     img = reader.acquireLatestImage();
                     if (img != null)
