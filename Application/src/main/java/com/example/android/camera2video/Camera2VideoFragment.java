@@ -237,16 +237,13 @@ public class Camera2VideoFragment extends Fragment
     private CaptureRequest.Builder mPreviewBuilder;
     private Surface mRecorderSurface;
 
-
     private SensorManager mSensorManager;
     private Sensor mGyro;
     private long mStartTime = -1;
-    private StringBuffer mUpdatedBuilder;
-    private StringBuffer mBuilderToFile;
-    private PrintStream mGyroWriter;
-    private static int mCharCount = 262144;
     private ImageReader mImageReader;
     private int mFrameCount;
+
+    private MyStringBuffer mStringBuffer;
 
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
@@ -625,9 +622,9 @@ public class Camera2VideoFragment extends Fragment
         mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        if (mNextVideoAbsolutePath == null || mNextVideoAbsolutePath.isEmpty()) {
-            mNextVideoAbsolutePath = getVideoFilePath(getActivity());
-        }
+//        if (mNextVideoAbsolutePath == null || mNextVideoAbsolutePath.isEmpty()) {
+//            mNextVideoAbsolutePath = getVideoFilePath(getActivity());
+//        }
         mMediaRecorder.setOutputFile(mNextVideoAbsolutePath);
         mMediaRecorder.setVideoEncodingBitRate(10000000);
         mMediaRecorder.setVideoFrameRate(30);
@@ -657,8 +654,8 @@ public class Camera2VideoFragment extends Fragment
         }
         try {
             closePreviewSession();
-            setUpMediaRecorder();
             setUpSensorWriter();
+            setUpMediaRecorder();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -725,14 +722,17 @@ public class Camera2VideoFragment extends Fragment
         wallpaperDirectory1.mkdirs();
 
         String gyroFile = Environment.getExternalStorageDirectory().getPath() + "/videoSensor/" + timestamp + "/" + timestamp + "gyro" + ".csv";
+        mNextVideoAbsolutePath = Environment.getExternalStorageDirectory().getPath() + "/videoSensor/" + timestamp + "/" + timestamp + ".mp4";
 
         try {
-            Log.d(TAG, "setUpSensorWriter");
-            mGyroWriter = new PrintStream(gyroFile);
-            mUpdatedBuilder = new StringBuffer(mCharCount);
+            PrintStream gyroWriter = new PrintStream(gyroFile);
+            mStringBuffer = new MyStringBuffer(gyroWriter);
+
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
+
+//        mStringBuffer = new MyStringBuffer(gyroFile);
     }
 
     private void closePreviewSession() {
@@ -758,9 +758,9 @@ public class Camera2VideoFragment extends Fragment
                     Toast.LENGTH_SHORT).show();
             Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
         }
+
+        mStringBuffer.close();
         mNextVideoAbsolutePath = null;
-        mGyroWriter.append(mUpdatedBuilder);
-        mGyroWriter.close();
         startPreview();
     }
 
@@ -839,34 +839,21 @@ public class Camera2VideoFragment extends Fragment
         if (mIsRecordingVideo) {
             if (sensorEvent.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
 
-                if (mStartTime == -1) {
-                    mStartTime = sensorEvent.timestamp;
-                }
+//                if (mStartTime == -1) {
+//                    mStartTime = sensorEvent.timestamp;
+//                }
+                StringBuilder sensorData = new StringBuilder();
+                sensorData.append(sensorEvent.values[0]);
+                sensorData.append(',');
+                sensorData.append(sensorEvent.values[1]);
+                sensorData.append(',');
+                sensorData.append(sensorEvent.values[2]);
+                sensorData.append(',');
+                sensorData.append(sensorEvent.timestamp - mStartTime);
+                sensorData.append('\n');
 
-                if (mUpdatedBuilder.length() < mCharCount) {
-                    mUpdatedBuilder.append(sensorEvent.values[0] + "," +
-                            sensorEvent.values[1] + "," +
-                            sensorEvent.values[2] + "," +
-                            (sensorEvent.timestamp - mStartTime) + "\n");
-                } else {
-                    mBuilderToFile = mUpdatedBuilder;
-                    mUpdatedBuilder = new StringBuffer(mCharCount);
-                    new AsyncTaskWriter().execute(mBuilderToFile);
-                }
+                mStringBuffer.append(sensorData.toString());
             }
-        }
-    }
-
-    private class AsyncTaskWriter extends AsyncTask<StringBuffer, Integer, Integer> {
-        @Override
-        protected Integer doInBackground(StringBuffer... stringBuilders) {
-            Log.d(TAG, "do in background");
-            mGyroWriter.append(stringBuilders[0]);
-            return 1;
-        }
-
-        protected void onPostExecute(Long result) {
-            Log.d(TAG, "Downloaded");
         }
     }
 
@@ -876,8 +863,8 @@ public class Camera2VideoFragment extends Fragment
                 @Override
                 public void onImageAvailable(ImageReader reader) {
                     if (mIsRecordingVideo) {
-                        mFrameCount++;
-                        mUpdatedBuilder.append(mFrameCount + "\n");
+//                        mFrameCount++;
+                        mStringBuffer.append("f\n");
                     }
                     Image img = null;
                     img = reader.acquireLatestImage();
