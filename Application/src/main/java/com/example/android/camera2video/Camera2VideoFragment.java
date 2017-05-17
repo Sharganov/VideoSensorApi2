@@ -241,7 +241,6 @@ public class Camera2VideoFragment extends Fragment
     private Sensor mGyro;
     private long mStartTime = -1;
     private ImageReader mImageReader;
-    private int mFrameCount;
 
     private MyStringBuffer mStringBuffer;
 
@@ -737,7 +736,13 @@ public class Camera2VideoFragment extends Fragment
 
     private void closePreviewSession() {
         if (mPreviewSession != null) {
-            mPreviewSession.close();
+            try {
+                mPreviewSession.stopRepeating();
+                mPreviewSession.abortCaptures();
+            }
+            catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
             mPreviewSession = null;
         }
     }
@@ -745,10 +750,11 @@ public class Camera2VideoFragment extends Fragment
     private void stopRecordingVideo() {
         // UI
         mIsRecordingVideo = false;
-        mFrameCount = 0;
         mStartTime = -1;
+
         mButtonVideo.setText(R.string.record);
         // Stop recording
+        closePreviewSession();
         mMediaRecorder.stop();
         mMediaRecorder.reset();
 

@@ -16,13 +16,11 @@ public final class MyStringBuffer {
 
     public MyStringBuffer(PrintStream printStream) {
         mGyroWriter = printStream;
-        Log.d("hmm", "cont");
         mUpdatedBuilder = new StringBuffer(mCharCount);
         mBuilderToFile = null;
     }
 
     public void append(String str) {
-        Log.d("strbuff", "append");
         if (mUpdatedBuilder.length() < mCharCount) {
             mUpdatedBuilder.append(str);
         } else {
