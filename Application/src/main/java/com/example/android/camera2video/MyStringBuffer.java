@@ -1,9 +1,7 @@
 package com.example.android.camera2video;
 
 import android.os.AsyncTask;
-import android.util.Log;
 
-import java.io.FileNotFoundException;
 import java.io.PrintStream;
 
 public final class MyStringBuffer {
