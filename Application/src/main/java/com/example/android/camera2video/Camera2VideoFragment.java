@@ -238,6 +238,7 @@ public class Camera2VideoFragment extends Fragment
 
     private MyStringBuffer mStringBuffer;
     private VideoEncoder mVideoEncoder;
+    private GyroIntegration mGyroIntegration;
 
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
@@ -662,6 +663,8 @@ public class Camera2VideoFragment extends Fragment
             Log.d(TAG, "VideoEncoder creating. " + Integer.toString(mVideoSize.getHeight()) + "x" + Integer.toString(mVideoSize.getWidth()));
             mVideoEncoder = new VideoEncoder(mVideoSize.getWidth(), mVideoSize.getHeight(), 10000000);
             mVideoEncoder.prepare();
+
+            mGyroIntegration = new GyroIntegration();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -866,6 +869,8 @@ public class Camera2VideoFragment extends Fragment
                 sensorData.append('\n');
 
                 mStringBuffer.append(sensorData.toString());
+
+                mGyroIntegration.newData(sensorEvent.values[0], sensorEvent.values[1], sensorEvent.values[2], sensorEvent.timestamp);
             }
         }
     }
