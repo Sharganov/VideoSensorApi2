@@ -39,7 +39,6 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
@@ -238,6 +237,7 @@ public class Camera2VideoFragment extends Fragment
     private ImageReader mImageReader;
 
     private MyStringBuffer mStringBuffer;
+    private VideoEncoder mVideoEncoder;
 
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
@@ -453,7 +453,8 @@ public class Camera2VideoFragment extends Fragment
         }
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            mImageReader = ImageReader.newInstance(width / 16, height / 16, ImageFormat.YUV_420_888, 2);
+            Log.d(TAG, "ImageReader creating. " + Integer.toString(height) + "x" + Integer.toString(width));
+            mImageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 10);
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
             Log.d(TAG, "tryAcquire");
@@ -658,6 +659,9 @@ public class Camera2VideoFragment extends Fragment
             closePreviewSession();
             setUpSensorWriter();
             setUpMediaRecorder();
+            Log.d(TAG, "VideoEncoder creating. " + Integer.toString(mVideoSize.getHeight()) + "x" + Integer.toString(mVideoSize.getWidth()));
+            mVideoEncoder = new VideoEncoder(mVideoSize.getWidth(), mVideoSize.getHeight(), 10000000);
+            mVideoEncoder.prepare();
             SurfaceTexture texture = mTextureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -758,6 +762,8 @@ public class Camera2VideoFragment extends Fragment
         closePreviewSession();
         mMediaRecorder.stop();
         mMediaRecorder.reset();
+        mVideoEncoder.drainEncoder();
+        mVideoEncoder.release();
 
         Activity activity = getActivity();
         if (null != activity) {
@@ -875,8 +881,12 @@ public class Camera2VideoFragment extends Fragment
                     }
                     Image img = null;
                     img = reader.acquireLatestImage();
-                    if (img != null)
+                    if (img != null) {
+                        Log.d(TAG, "New image: " + Integer.toString(img.getHeight()) + "x" + Integer.toString(img.getWidth()));
+                        if (mIsRecordingVideo)
+                            mVideoEncoder.addImage(img);
                         img.close();
+                    }
                 }
             };
 }
