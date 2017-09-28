@@ -18,8 +18,17 @@ package com.example.android.camera2video;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
+
+import org.opencv.android.OpenCVLoader;
 
 public class CameraActivity extends Activity {
+    static {
+        if (!OpenCVLoader.initDebug()) {
+            Log.d("OLOLO", "no opencv");
+        }
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,5 +40,4 @@ public class CameraActivity extends Activity {
                     .commit();
         }
     }
-
 }

@@ -16,8 +16,8 @@ public class GyroIntegration {
     }
 
     public void newData(float x, float y, float z, long timestamp) {
-        Log.d(TAG, "New gyro");
-        if (mLastTimestamp >= 0) {
+        Log.d(TAG, "New gyro" + x + "," + y + "," + z + "," + timestamp);
+        if (mLastTimestamp <= 0) {
             mLastTimestamp = timestamp;
             return;
         }
@@ -39,11 +39,14 @@ public class GyroIntegration {
         deltaRotationVector[2] = sinThetaOverTwo * z;
         deltaRotationVector[3] = cosThetaOverTwo;
 
+        Log.d(TAG, "New rotation " + deltaRotationVector[0] + "," + deltaRotationVector[1]
+                + "," + deltaRotationVector[2] + "," + deltaRotationVector[3] + "," + timestamp);
+
         mLastTimestamp = timestamp;
     }
 
     public float[] getRotationMatrix() {
-        float[] matrix = new float[9];
+        float[] matrix = new float[16];
         SensorManager.getRotationMatrixFromVector(matrix, deltaRotationVector);
         return matrix;
     }
