@@ -216,17 +216,14 @@ public class Camera2VideoFragment extends Fragment
         }
 
     };
-    private Integer mSensorOrientation;
-    private String mNextVideoAbsolutePath;
+
     private CaptureRequest.Builder mPreviewBuilder;
 
     private SensorManager mSensorManager;
     private Sensor mGyroSensor;
     private GyroIntegrator mGyroIntegrator;
 
-    private long mStartTime = -1;
     private ImageReader mImageReader;
-
 
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
@@ -444,7 +441,7 @@ public class Camera2VideoFragment extends Fragment
         }
         CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
         try {
-            mImageReader = ImageReader.newInstance(width / 16, height / 16, ImageFormat.YUV_420_888, 2);
+            mImageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 50);
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
             Log.d(TAG, "tryAcquire");
@@ -458,7 +455,6 @@ public class Camera2VideoFragment extends Fragment
 
             StreamConfigurationMap map = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
             if (map == null) {
                 throw new RuntimeException("Cannot get available preview/video sizes");
             }
@@ -677,20 +673,11 @@ public class Camera2VideoFragment extends Fragment
     private void stopRecordingVideo() {
         // UI
         mIsRecordingVideo = false;
-        mStartTime = -1;
 
         mButtonVideo.setText(R.string.record);
         // Stop recording
         closePreviewSession();
 
-        Activity activity = getActivity();
-        if (null != activity) {
-            Toast.makeText(activity, "Video saved: " + mNextVideoAbsolutePath,
-                    Toast.LENGTH_SHORT).show();
-            Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
-        }
-
-        mNextVideoAbsolutePath = null;
         mGyroIntegrator.release();
         startPreview();
     }
@@ -794,9 +781,16 @@ public class Camera2VideoFragment extends Fragment
                 public void onImageAvailable(ImageReader reader) {
                     if (mIsRecordingVideo) {
                         float[] rotationData = mGyroIntegrator.getRotationMatrix();
-                        Log.d(TAG, "Rotation data: " + rotationData[0] + "x" + rotationData[1] + "x" + rotationData[2] + "x" +
+                        Log.d(TAG, "Rotation matrix: " + rotationData[0] + "x" + rotationData[1] + "x" + rotationData[2] + "x" +
                                 rotationData[3] + "x" + rotationData[4] + "x" + rotationData[5] + "x" +
                                 rotationData[6] + "x" + rotationData[7] + "x" + rotationData[8]);
+
+                        float[] transformMatrix = TransformationMatrix.getTransformationMatrix(rotationData,
+                                mImageReader.getWidth(), mImageReader.getHeight(), 800);
+                        Log.d(TAG, "Transformation matrix: " + transformMatrix[0] + "x" + transformMatrix[1] + "x" + transformMatrix[2] + "x" +
+                                transformMatrix[3] + "x" + transformMatrix[4] + "x" + transformMatrix[5] + "x" +
+                                transformMatrix[6] + "x" + transformMatrix[7] + "x" + transformMatrix[8]);
+
                     }
                     Image img = null;
                     img = reader.acquireLatestImage();
