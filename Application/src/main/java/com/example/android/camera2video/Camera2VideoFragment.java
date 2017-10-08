@@ -61,6 +61,11 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
 
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -224,6 +229,7 @@ public class Camera2VideoFragment extends Fragment
     private GyroIntegrator mGyroIntegrator;
 
     private ImageReader mImageReader;
+    private int mFrameCount = 0;
 
     public static Camera2VideoFragment newInstance() {
         return new Camera2VideoFragment();
@@ -779,6 +785,9 @@ public class Camera2VideoFragment extends Fragment
 
                 @Override
                 public void onImageAvailable(ImageReader reader) {
+                    Image img = null;
+                    img = reader.acquireLatestImage();
+
                     if (mIsRecordingVideo) {
                         float[] rotationData = mGyroIntegrator.getRotationMatrix();
                         Log.d(TAG, "Rotation matrix: " + rotationData[0] + "x" + rotationData[1] + "x" + rotationData[2] + "x" +
@@ -791,9 +800,17 @@ public class Camera2VideoFragment extends Fragment
                                 transformMatrix[3] + "x" + transformMatrix[4] + "x" + transformMatrix[5] + "x" +
                                 transformMatrix[6] + "x" + transformMatrix[7] + "x" + transformMatrix[8]);
 
+                        Mat srcYUV = ImageUtils.imageToMat(img);
+                        Mat srcRGB = new Mat();
+                        Imgproc.cvtColor(srcYUV, srcRGB, Imgproc.COLOR_YUV2RGB_I420);
+
+                        Mat transformMat = new Mat(3, 3, CvType.CV_32F);
+                        transformMat.put(0, 0, transformMatrix);
+
+                        Mat dst = ImageWarp.warp(srcRGB, transformMat);
+                        Imgcodecs.imwrite("/storage/emulated/0/" + mFrameCount + ".jpg", dst);
+                        mFrameCount++;
                     }
-                    Image img = null;
-                    img = reader.acquireLatestImage();
                     if (img != null)
                         img.close();
                 }
