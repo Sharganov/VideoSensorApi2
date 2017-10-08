@@ -18,8 +18,19 @@ package com.example.android.camera2video;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
+
+import org.opencv.android.OpenCVLoader;
 
 public class CameraActivity extends Activity {
+
+    static {
+        if (OpenCVLoader.initDebug()) {
+            Log.i("CameraActivity", "OpenCV initialize success");
+        } else {
+            Log.i("CameraActivity", "OpenCV initialize failed");
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
