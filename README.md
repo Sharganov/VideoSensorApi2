@@ -2,6 +2,7 @@
 Android Camera2Video Sample
 ===================================
 
+
 This sample shows how to record video using the new Camera2 API in Android Lollipop.
 
 Introduction
